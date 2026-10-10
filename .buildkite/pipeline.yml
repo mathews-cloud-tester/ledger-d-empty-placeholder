@@ -1,0 +1,4 @@
+steps:
+  - label: "Deploy web"
+    command: npx --yes vercel deploy --prod --yes
+    branches: "main"
