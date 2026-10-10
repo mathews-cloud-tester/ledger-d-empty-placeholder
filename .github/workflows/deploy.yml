@@ -1,0 +1,48 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-web:
+    name: Deploy web
+    runs-on: ubuntu-latest
+    env:
+      CHANGE_MONITOR_ENV: prod
+      CHANGE_MONITOR_SERVICE: web
+      DEPLOY_SOURCE_URI: https://github.com/mathews-cloud-tester/ledger-d-empty-placeholder
+      DEPLOY_VERSION: ${{ github.sha }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Report deploy start to Cursor Rollouts
+        continue-on-error: true
+        run: |
+          chmod +x scripts/cursor-rollouts-report.sh
+          ./scripts/cursor-rollouts-report.sh bootstrap
+          ./scripts/cursor-rollouts-report.sh start
+
+      - name: Deploy web
+        id: ship
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel deploy --prod --yes
+
+      - name: Report deploy success to Cursor Rollouts
+        if: success()
+        continue-on-error: true
+        run: ./scripts/cursor-rollouts-report.sh finish succeeded
+
+      - name: Report deploy failure to Cursor Rollouts
+        if: failure() && steps.ship.outcome == 'failure'
+        continue-on-error: true
+        run: ./scripts/cursor-rollouts-report.sh finish failed
+
+      - name: Report deploy aborted to Cursor Rollouts
+        if: cancelled()
+        continue-on-error: true
+        run: ./scripts/cursor-rollouts-report.sh finish aborted
